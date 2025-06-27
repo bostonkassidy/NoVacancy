@@ -3,22 +3,19 @@
 #include <Bounce2.h>
 #include <DYPlayerArduino.h>
 
-DY::Player player;
+//DY::Player player;
 
 int phoneID = 0;
-
-#define BUTTON_PIN 1
-Bounce2::Button button = Bounce2::Button();
 
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
 byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED +10
 };
-IPAddress ip(192, 168, 0, 200 + phoneID);  ////TEENSY IP
+IPAddress ip(192, 168, 1, 200 + phoneID);  ////TEENSY IP
 
 // Enter the IP address of the server you're connecting to:
-IPAddress server(192, 168, 0, 10);  ////TOUCH PC IP
+IPAddress server(192, 168, 1, 165);  ////TOUCH PC IP
 
 // Initialize the Ethernet client library
 // with the IP address and port of the server
@@ -34,9 +31,13 @@ EthernetClient client;
 // int service3 = 13;
 // int dnd3 = 14;
 
-const uint8_t relayPins[] = { 2, 3, 4, 5, 6, 7 };
+const uint8_t relayPins[] = { 3, 4, 5, 6, 7, 8 };
 uint8_t relayState[6];
-char messageArray[6];
+
+const uint8_t buttonPins[] = { 9, 10, 11 };
+uint8_t buttonState[3];
+
+//char messageArray[6];
 
 // Generally, you should use "unsigned long" for variables that hold time
 // The value will quickly become too large for an int to store
@@ -47,11 +48,12 @@ const long interval = 1000;  // interval at which to blink (milliseconds)
 
 byte ledPin = 13;
 
-char packetBuffer[17];
+char packetBuffer[76];
 
 String incomingMessage;
 
-int port = 7000;
+int port = 8000;
+int localPort = 50000 + phoneID;
 
 // how much data we expect before a newline
 const unsigned int MAX_INPUT = 100;
@@ -61,6 +63,7 @@ void (*resetFunc)(void) = 0;  //declare reset function
 void setup() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
+  Serial.println("I'm alive");
 
   pinMode(13, OUTPUT);
 
@@ -69,7 +72,14 @@ void setup() {
     Serial.println("Setting pin " + String(i));
   }
 
+  for (int i = 0; i < 3; i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+    Serial.println("Setting pin " + String(i));
+  }
 
+
+  /////////////////////FLASH RELAYS AT STARTUP
+  /*
   for (int i = 0; i < 6; i++) {
     digitalWrite(relayPins[i], HIGH);
   }
@@ -79,6 +89,9 @@ void setup() {
   for (int i = 0; i < 6; i++) {
     digitalWrite(relayPins[i], LOW);
   }
+
+  */
+
   digitalWrite(13, HIGH);
 
 
@@ -102,7 +115,7 @@ void setup() {
   Serial.println("connecting...");
 
   // if you get a connection, report back via serial:
-  if (client.connect(server, port)) {
+  if (client.connect(server, port, localPort)) {
     Serial.println("connected");
   } else {
     // if you didn't get a connection to the server:
@@ -110,13 +123,32 @@ void setup() {
     Serial.println("resetting.");
     resetFunc();  /// reset the teensy
   }
+
+//  client.setNoDelay(true);
+Ethernet.setRetransmissionTimeout(1);
 }
 
 bool firstLoop = true;
 
 void loop() {
+
+  // ///////BARTENDER BUTTONS
+  // for (int i = 0; i < 3; i++) {
+  //   if (digitalRead(buttonPins[i]) == 0) {
+  //     if (client.available()) {
+  //       client.print("0: " + String(i));
+  //     }
+  //   }
+  // }
+
+  // if (relayPins[0] == 1 || relayPins[1] == 1 || relayPins[2] == 1) {
+  //   /////BEEP and flash
+  // }
+
+
   /////read incoming messages
-  while (client.available() > 0) {
+
+  if (client.available() > 0) {
     processIncomingByte(client.read());
   }
 
@@ -146,7 +178,7 @@ void process_data(const char* data) {
     incomingMessage.trim();
 
     //Serial.println("NEW MESSAGE" + incomingMessage);
-    
+
     for (int i = 0; i < 6; i++) {
 
       if (incomingMessage[i] == '1') {
@@ -154,7 +186,6 @@ void process_data(const char* data) {
         Serial.println("Setting pin high: " + String(relayPins[i]));
       } else {
         digitalWrite(relayPins[i], LOW);
-        
       }
       incomingMessage = incomingMessage.remove(i, 2);
     }
